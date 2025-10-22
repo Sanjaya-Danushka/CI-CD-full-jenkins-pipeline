@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-python-app-staging
+  labels:
+    app: my-python-app
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-python-app
+      environment: staging
+  template:
+    metadata:
+      labels:
+        app: my-python-app
+        environment: staging
+    spec:
+      containers:
+      - name: my-python-app
+        image: your-registry.com/my-python-app:${BUILD_NUMBER}
+        ports:
+        - containerPort: 5000
+        env:
+        - name: FLASK_ENV
+          value: "development"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-python-app-staging-service
+spec:
+  selector:
+    app: my-python-app
+    environment: staging
+  ports:
+  - port: 80
+    targetPort: 5000
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-python-app-staging-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: staging.my-python-app.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-python-app-staging-service
+            port:
+              number: 80

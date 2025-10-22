@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-python-app-production
+  labels:
+    app: my-python-app
+    environment: production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-python-app
+      environment: production
+  template:
+    metadata:
+      labels:
+        app: my-python-app
+        environment: production
+    spec:
+      containers:
+      - name: my-python-app
+        image: your-registry.com/my-python-app:${BUILD_NUMBER}
+        ports:
+        - containerPort: 5000
+        env:
+        - name: FLASK_ENV
+          value: "production"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-python-app-production-service
+spec:
+  selector:
+    app: my-python-app
+    environment: production
+  ports:
+  - port: 80
+    targetPort: 5000
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-python-app-production-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - my-python-app.com
+    secretName: my-python-app-tls
+  rules:
+  - host: my-python-app.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-python-app-production-service
+            port:
+              number: 80
